@@ -13,9 +13,9 @@ USAGE
 
 For an correct evaluation, the transcriptome needs to be annotated and translated into amino acid sequences. The users must make sure that the transcriptome is in the FASTA file format.
 The program is then started with the bash command:
-
+```shell
 ./fullPrecN <path/of/transcriptomeFasta>
-
+```
 All results will be stored in the directory where fullPrecN is located.
 
 NOTICE
