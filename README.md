@@ -1,5 +1,5 @@
 # fullPrecN
-### README
+## README
 
 fullPrecN is a tool, which is searching for full precursor or fragments of spider neurotoxins in transcriptomic data.
 
@@ -17,6 +17,9 @@ The program is then started with the bash command:
 ./fullPrecN <path/of/transcriptomeFasta>
 ```
 All results will be stored in the directory where fullPrecN is located.
+
+### PROGRAMES NEEDED
+[Perl 5](https://www.perl.org/) and [HMMER3](http://hmmer.org/)
 
 ### NOTICE
 
