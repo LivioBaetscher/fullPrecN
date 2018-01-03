@@ -18,7 +18,7 @@ The program is then started with the bash command:
 ```
 All results will be stored in the directory where fullPrecN is located.
 
-### PROGRAMES NEEDED
+### PROGRAMS NEEDED
 [Perl 5](https://www.perl.org/) and [HMMER3](http://hmmer.org/)
 
 ### NOTICE
