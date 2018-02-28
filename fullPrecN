@@ -1,0 +1,486 @@
+#!/usr/bin/perl
+
+# fullPrecN 1.0 mian script
+# Date: 20.02.2018
+
+=head1 NAME
+
+fullPrecN - does HMM searches, preforms a filtering and does the post-processing of the sequences
+
+=head1 SYNOPSIS
+
+./fullPrecN [options] -in <seqFasta> --sig <signalHMM> --mat <matureHMM>
+
+=head1 DESCRIPTION
+
+fullPrecN is designed to find and process cystein-rich peptides from
+spider transcriptomes. A HMM search is performed twice, using
+hmmcompete. The HMM scores are used in the filtering process. All
+sequences, that are not removed during the filtering, are
+post-processed. The sequences are trimmed, sorted according to the toxin
+subfamily, redundant sequences are removed. Finally remaining sequences
+in the subgroups are aligned using mafft. The -r option allows to keep
+all redundant sequences for further analysis. The -o option allows
+redirecting the main output.
+
+=head2 Mandatory arguments
+
+	-i|--in		The file containing the transcriptome sequences. In FASTA format
+	--sig		The profile database used for the signal peptide classification. HMMER3 profiles.
+	--mat		The profile database used for the mature peptide classification. HMMER3 profiles.
+	
+
+=head2 Optional parameters
+
+	-o|--out 	Redirect the main output to a directory instead of the default directory.
+	-r|--noRed	The redundant sequences are not removed.
+	-a|--noAl	The alignment is not preformed.
+	-h|--help	Print a brief reminder of command line usage and available options.
+	-v|--version	Print the fullPrecN version.
+
+=head1 AUTHOR
+
+  Livio Baetscher <livio@bioinfoinfo.com>
+  
+=cut
+
+# Import the packages
+use strict; use Getopt::Long; use Pod::Usage; use Data::Dumper; 
+
+# Output directory for the result storage
+my $outDir = "Results";
+
+# Process the input arguments
+my ($transcriptomeFile, $sigHMM, $matHMM, $removeOpt, $alignOpt,$help, $vers) = ();
+GetOptions(
+	"in|i=s" => \$transcriptomeFile,
+	"sig=s" => \$sigHMM,
+	"mat=s" => \$matHMM,
+	"o|out:s"=> \$outDir,
+	"r|noRed"=> \$removeOpt,
+	"a|noAl"=> \$alignOpt,
+	"help|h" => \$help,
+	"vers|v"=>\$vers,
+);
+
+# Create the variable for the hmmcompete output
+my $sigFile = $transcriptomeFile."_sig.csv";
+my $matFile = $transcriptomeFile."_mat.csv";
+
+# Version
+my $version='1.0';
+my $hmmsort_version='hmmsort version: ' . "$version";
+
+# Print the program description
+if($help){pod2usage( -verbose => 99 ); exit;}
+
+# Print the version information
+if($vers){print "$hmmsort_version\n"; exit;}
+
+# Error handling for missing input or HMM files
+unless(defined $transcriptomeFile and -s $transcriptomeFile){
+	die "###########################################################################\n".
+	"Transcriptome input-file not found! Please check your input file.\n".
+	"###########################################################################\n";
+}
+unless(defined $sigHMM and -s $sigHMM){
+	die "###########################################################################\n".
+	"Signal peptide HMM database not found! Please check your input file.\n".
+	"###########################################################################\n";
+}
+unless(defined $matHMM and -s $matHMM){
+	die "###########################################################################\n".
+	"Mature peptide HMM database not found! Please check your input file.\n".
+	"###########################################################################\n";
+}
+
+# Print the start-statement
+print "###########################################################################\n";
+print "Get a cup of coffee, the search will be completed in a few minutes (~5').\n";
+print "###########################################################################\n";
+
+# Run the HMM search with the program hmmcompete
+system ("./hmmcompete --hmm $sigHMM -i $transcriptomeFile -o $sigFile --hmmaln --inanot -d --altpred;
+		./hmmcompete --hmm $matHMM -i $transcriptomeFile -o $matFile --hmmaln --inanot -d --altpred;") == 0
+		  or die "Error: make sure, that hmmcompete is available in
+					your path variable or in the working directory.";
+
+# Get the lines of the hmmcompete outputfiles
+my @signallines = get_line($sigFile);
+my @matlines = get_line($matFile);
+
+# Remove the no longer needed files
+system ("rm -rf $sigFile; rm -rf $matFile;") == 0
+		  or die "Error: rm failed. Make sure rm is installed and available.";
+ 
+# Create hashes from the lines
+my %sighash = get_hash(@signallines);
+my %mathash = get_hash(@matlines);
+
+# Merge the two hashes
+my %totalhash = get_mergedResults(\%sighash, \%mathash);
+
+# Filter the values
+my %filteredResults = get_filterdResults(\%totalhash);
+
+# Add the sequences which were trimmed
+my %trimedResults = get_trimmedSeq(\%filteredResults, $transcriptomeFile);
+
+# Handle the option remove
+if ($removeOpt) {
+		# Print the sequences in FASTA fromat into family specific files
+		create_FASTA(\%trimedResults, $outDir);
+} else {
+	# Case where the redundant sequences are removed
+	my %uniqueResults = remove_redundance(\%trimedResults);
+	# Print the sequences in FASTA fromat into family specific files
+	create_FASTA(\%uniqueResults, $outDir);
+}
+
+# Do the file alignment
+create_alignedFASTA($outDir);
+
+# Print the end-statement
+print "###########################################################################\n";
+print "The search process is done.\n";
+print "###########################################################################\n";
+#**************************** Subroutines *****************************#
+
+## This subroutine gets the lines of a file.
+## Arguments:
+##	$filename: name of a file
+## Returns: An array containing lines as elements
+## Program flow: Method is called in the subroutine get_hash and in the
+## main program
+sub get_line {
+	my ($filename) = @_ ; # Get the filename
+	# Check if the file exists
+	open(my $fh, '<:encoding(UTF-8)', $filename)
+	or die "Could not open file '$filename' $!";
+	
+	my @lines = <$fh>; # Get the lines
+	close $fh or die "Cannot close '$filename' $!";
+			
+	return @lines;
+}
+## This subroutine process each line and returns the information as a
+## hash.
+## Arguments:
+##	@lines: all lines from the hmmcompete outputfiles
+## Returns: Hash with the sequence id (as key) and a string with the
+## remaining information (as value)
+## Program flow: Method is called in the main program
+sub get_hash {
+	my (@lines) = @_;
+	my %infoHash;
+	foreach (@lines) {
+		my $line = $_;
+		# Split the id away from the rest
+		my ($id, $info) = split /\t/,$line,2;
+		my @infoele = split /\t/;  # Split the information again
+		my @brackets = split /\s/,$infoele[8];  # Split the brackets
+		my $highscore = 0;
+		my $bestbracket = '';
+		
+		# Iterate through all brackets
+		foreach my $bracket (@brackets) {
+			my $score = $bracket;
+			$score =~ s/.*#.*#//;
+			$score =~ s/\)//;
+			$score =~ s/\.//;
+			# Keep only the bracket with the highest score
+			if ($score > $highscore) {
+				$highscore = $score;
+				$bestbracket = $bracket;
+			}
+		}
+		# Remove the useless values
+		$bestbracket =~ s/\(//;
+		$bestbracket =~ s/\)//;
+		$bestbracket =~ s/#/\t/g;
+		$infoHash{$id}=$bestbracket;
+	}
+	return %infoHash
+}
+
+## This subroutine merges the results from the signal and the mature pep-
+## tide HMM results. If the id (key) is identical the values are added.
+## Arguments:
+##	%sighash: Hash containing all the signal peptides id (as key) and a
+##  string with the remaining information (as value)
+##  %mathash: Hash containing all the mature peptides id (as key) and a
+##  string with the remaining information (as value)
+## Returns: Hash with the sequence and unique id (as key) and a string 
+## with the remaining information (as value)
+## Program flow: Method is called in the main program
+sub get_mergedResults {
+	my ($signalh, $math) = @_;
+	my %sighash = %{$signalh};
+	my %mathash = %{$math};
+	my %mergedHash = %sighash;
+	foreach my $key (keys %mathash) {
+		my $newel = $mathash{$key};
+		if (exists $mergedHash{$key}) {
+			# Connect the two values if they exist
+			my $currentel = $mergedHash{$key};
+			$currentel =~ s/\n//;
+			my $add = join("\t", $currentel, $newel);
+			$mergedHash{$key} = $add;	
+		} else {
+			# Add the mature peptide if there is no signal peptide
+			$newel = join("\t", "\t\t", $newel);
+			$mergedHash{$key} = $newel;
+		}
+	}
+	return %mergedHash;
+}
+
+## This subroutine filters all sequences, for which the signal and the
+## mature peptide classification is equal or the mature peptide score is
+## >=19.2.
+## Arguments:
+##	%sighash: Hash containing all merged results
+## Returns: Hash with the filtered result
+## Program flow: Method is called in the main program
+sub get_filterdResults {
+	my ($mergeh) = @_;
+	my %mergehash = %{$mergeh};
+	my %filteredHash;
+	foreach my $key (keys %mergehash) {
+		my @fields = split "\t" , $totalhash{$key};  # Split the values according to "\t"
+		my $sigClass = $fields[1];  # Get the signal peptide classification
+		$sigClass =~ s/_signal_\d{2}//;
+		my $matClass = $fields[4]; # Get the mature peptide classification
+		$matClass =~ s/_\d{2}$//;
+		my $matScore = $fields[5];  # Get the mature peptide score
+		# Only keep the values if they have the same signal and mature
+		# peptide or if the mature peptide is above or equalthe cut-off 
+		# value of 19.2
+		if (($sigClass eq $matClass) or ($matScore >= 19.2)) {
+			# Exclude the empty mature peptides
+			if ($matClass ne '') {
+				$filteredHash{$key} = $mergehash{$key};
+			}
+		}
+	}
+	return %filteredHash;
+}
+
+## This subroutine gets the sequences from the transcriptome file.
+## Arguments:
+##	$transcriptomFile: name of the transcriptome file
+## Returns: A hash, where the id is the key and the sequence is the value.
+## Program flow: Method is called in the subroutine get_trimmedSeq
+sub get_seq {
+	my ($transcriptomeFile) = @_; # Get the filename
+	open(my $tf, $transcriptomeFile) or die "Can't open transcriptome 
+												input-file:
+												$transcriptomeFile";
+	local $/="\n>";
+	my %seqset;
+	while (<$tf>) {
+		chomp(my $entry= $_);
+		$entry =~ s/>//g;
+		$entry =~ s/[\n\r]/\n/g;
+		my ($id,$seq) = split /\n/,$entry,2;
+		$seq =~ s/[\s\n\r]//g;
+		$seqset{$id}=uc($seq);
+	}
+	close($tf);		
+	return %seqset;
+}
+
+## This subroutine trims the input sequence and tries to get the full
+## precursor sequence. 
+## Arguments:
+##	$trimSeq: Untrimmed complete sequence from the transcriptome file
+##  $infoline: The information from the HMM search of a certain sequence
+## Returns: The trimmed sequence
+## Program flow: Method is called in the subroutine get_trimmedSeq
+sub do_trimming {
+	my ($trimSeq, $infoline) = @_;
+	# Load the start and end
+	my @infoele = split /\t/,$infoline;  # Split the information of the line
+	my @probBorders = split /-/,$infoele[0]-1;  # Add the signal start and end
+	push @probBorders, split /-/,$infoele[3]-1;  # Add the mature start and end 
+	my $start = $probBorders[0];  # Get the start
+	my $end = $probBorders[1];  # Get the end
+	# Hanle the case, where a signal peptide is avilable
+	if ($probBorders[3] ne '') {
+		$end = $probBorders[3];
+	}
+	# Trim of after the end
+	while ($end<length($trimSeq)) {
+		if (substr($trimSeq, $end, 1) eq "X") {
+			$trimSeq = substr($trimSeq, 0, $end+1); last;
+		}
+		$end++;	
+	}
+	# Go to the left until the start or a "X" is reached
+	my $secandStart = 0;
+	while ($start>0) {
+		if (substr($trimSeq, $start, 1) eq "X") {
+			$secandStart = $start; last;
+		}
+		$start--;	
+	}
+	$start = $probBorders[0]; #Reset the start
+	
+	# Now we go right until the initial start or a "M" is reached
+	while ($secandStart<$start) {
+		if (substr($trimSeq, $secandStart, 1) eq "M") {
+			$trimSeq = substr($trimSeq, $secandStart); last;
+		}
+		$secandStart++;
+		# Handle the case that the initial start position was the
+		# best start
+		if ($start == $secandStart) {
+			$trimSeq = substr($trimSeq, $start);
+		}
+	}
+	return $trimSeq;
+}
+
+## This subroutine gets the sequence from the transcriptome, then the
+## sequence are trimmed and added to the results.
+## Arguments:
+##	$transcriptomFile: name of the transcriptome file
+##  %resulthash: Hash containing all the id (as key) and the information
+##  from the HMM search (as value)
+## Returns: Hash that contains additionally the trimmed sequence
+## Program flow: Method is called in the main program
+sub get_trimmedSeq {
+	my ($resulth, $trqanscriptomeFile) = @_;
+	my %resulthash = %{$resulth};
+	my %trimmedhash;
+	
+	my %transcriptomeSeq = get_seq($transcriptomeFile);
+	# Add the sequences to the existing information
+	foreach my $key (keys %resulthash) {
+		my $seq = $transcriptomeSeq{$key};
+		# Trim the complete sequence
+		my $trimmedSeq = do_trimming($seq, $resulthash{$key});
+		my $add = join("\t", $resulthash{$key}, $trimmedSeq);
+		$trimmedhash{$key} = $add;
+	}
+	return %trimmedhash;
+}
+
+## This subroutine removes identical sequences and substrings.
+## Arguments:
+##	%resulthash: Hash containing all the id (as key) and the information
+##  from the HMM search and the trimmed sequences (as value)
+## Returns: Hash that contains only non-redundant sequence as value
+## Program flow: Method is called in the main program
+sub remove_redundance {
+	my ($resulth) = @_;
+	my %resulthash = %{$resulth};
+	# The information has to be shifted around
+	my %shiftedHash = '';
+	foreach my $key (keys %resulthash) {
+		my $newkey = $resulthash{$key};
+		$newkey =~ s/^.*\t//;
+		my $newel = join("\t", $key, $resulthash{$key});
+		$newel =~ s/[A-Z]+$//;
+		# With this storage only unique sequences are stored
+		$shiftedHash{$newkey} = $newel;
+	}
+	# Get rid of the substrings
+	foreach my $seq (keys %shiftedHash) {
+		my $remove = 0; # If this value is 1 remove the sequence
+		foreach my $key (keys %shiftedHash) {
+			# This if-statement removes subsequences, if the length is
+			# different and if it is not a empty key or value
+			if ((index($key, $seq) != -1) and 
+			(length($key) != length($seq)) and ($key ne '') and
+			($seq ne '')) {
+				$remove = 1;
+			}
+		}
+		# Here the values are removed
+		if ($remove == 1) {undef $shiftedHash{$seq};}
+	}
+	# Now the values are shifted back into the initial format
+	my %uniqHash = '';
+	foreach my $key (keys %shiftedHash) {
+		# Remove finally the key with an empty value
+		if ($shiftedHash{$key} ne '') {
+			my $oldkey = $shiftedHash{$key};
+			$oldkey =~ s/\t.*$//;
+			my $oldel = join("\t", $shiftedHash{$key}, $key);
+			$oldel =~ s/^\S+\t//;
+			$uniqHash{$oldkey} = $oldel;
+		}
+	}
+	return %uniqHash;
+}
+
+## This subroutine fills sequence into files (in the FASTA-format), which
+## are separated according to the toxin family label.
+## Arguments:
+##  %resulthash: Hash containing all the id (as key) and the information
+##  from the HMM search and the trimmed unique sequences (as value)
+##  $outDir: In this location the results are stored
+## Returns: nothing
+## Program flow: Method is called in the main program
+sub create_FASTA {
+	my ($finalh, $outDir) = @_;
+	my %finalhash = %{$finalh};
+    unless(-e $outDir or mkdir $outDir) {
+        die "Unable to create $outDir\n";
+    }
+	foreach my $key (keys %finalhash) {
+		my @infos = split("\t", $finalhash{$key});
+		# Find the expression of the mature peptide
+		$finalhash{$key} =~ /(\w\w_\d\d_\d\d)/;
+		my $fam = $1;  # Connect the expression with a variable
+		# Keep only the sequence
+		my $seq = $finalhash{$key};
+		$seq =~ s/.*\t//g;
+		my $famName = './'.$outDir.'/'.$fam.'_subfamily';
+		# Store the sequence according to the subfamilies that start
+		# with SN (VP are excluded here)
+		$_ = $fam;
+		# Comment line 334 and uncomment line 335 to include also VP and SC
+		if (m/^SN_/) {
+		#if (($seq ne '') or ($key ne '')) {
+			# Print the results into the file into the FASTA-format
+			open my $famfh, ">>", $famName or die "open failed : $!";
+			print $famfh ">".$key."\n".$seq."\n";
+			close $famfh;
+		}
+	}
+}
+
+## This subroutine aligns the sequences in files that were created from
+## create_FASTA (using MAFFT). The clean up of the previous files takes
+## also place in this method.
+## Arguments:
+##  $outDir: In this location the results are stored
+## Returns: nothing
+## Program flow: Method is called in the main program
+sub create_alignedFASTA {
+	my ($outDir) = @_;
+	# Go through all files
+	my @files = <./$outDir/*_*_subfamily>;
+	foreach my $file (@files) {
+		my $output = $file .'.fa';
+		# Count the number of the sequences
+		my @seqLines = get_line($file);
+		my @seqNumbers = grep {!/^>/} @seqLines;
+		if (!$alignOpt and scalar @seqNumbers > 1) {
+			# Align all remaining FASTA files
+			system ("mafft --maxiterate 1000 --localpair $file >$output")==0
+			  or die "Error: mafft failed. Make sure mafft is installed and available.";
+		} else {
+			foreach my $line (@seqLines) {
+				# Print the results into the file according to the FASTA-format
+				open my $famfh, ">>", $output or die "open failed : $!";
+				print $famfh $line;
+				close $famfh;
+			}
+		}
+		system ("rm -rf $file") == 0  # Remove the no longer needed file
+		  or die "Error: rm failed. Make sure rm is installed and available."; 
+	}	
+}

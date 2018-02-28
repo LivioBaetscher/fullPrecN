@@ -1,0 +1,435 @@
+#!/usr/bin/perl
+
+# hmmcompete 0.1 main script
+#
+# 2017, may 1
+
+=head1 NAME
+
+hmmcompete - report the best classifier when multiple HMMs are matching the 
+				same peptide sequence
+
+=head1 SYNOPSIS
+
+hmmcompete [options] --hmm <hmmDb> -in <seqFastaDb>
+
+=head1 DESCRIPTION
+
+hmmcompete is proposed as an add-on to the HMMER3 suite.
+hmmcompete internally runs hmmsearch which is therefore required and should be available via your environment PATH variable.
+If you don't have HMMER3 installed, please install it and make it availabble on your Path.
+Compatible version of the HMMER3 suite can be found at http://hmmer.org/ . 
+
+hmmcompete is used to search a profile database against a sequence database. 
+For each profile in <hmmdb>, use that query to search the target database of sequences in <seqFastaDb>, and output for each sequence the best matching profile.
+hmmcompete is a perl script that internally runs hmmsearch and processes its output to only report the profile best hit for each sequence.
+The main output is a tab-separated file indicating for each sequence in <seqFastaDb> the model giving the best domain bit score.
+Bit scores for alternative matches can also be reported using the --altpred option.
+The -o option allows redirecting the main output, including throwing it away in /dev/null.
+
+=head2 Mandatory arguments
+
+	--hmm <f>	The profile database to be used for sequence classification. HMMER3 profiles.
+	-i|--in <f>	The sequence database to be classified. In FASTA format
+	
+
+=head2 Optional parameters list
+
+	-o|--out <f>	Redirect the main human-readable output to a file <f> instead of the default stdout.
+	-h|--help	Print a brief reminder of command line usage and available options then exit.
+	-d|--desc	Display profile description in the main output when the description is present in the profile. Default: 'Off'.
+	--altpred	Display number of alternative profile HMM matching a sequence 
+			as well as a summarized description of each alternative match. Default: 'Off'.
+	--allseq	Also report sequences not matched by any model. Default: 'Off' i.e. only sequences matched by a profile in hmmDB are reported by default.
+	--pepreg	Display region of the target sequence that matched the best model hit. Default: 'Off'.
+	--hstblout <f>	Save an output file similar to that of hmmsearch run with the --domtblout option. 
+				Will only report the best prediction/classification where available. 
+				Sequences not matched by any model are not reported. Alternative HMM matches are also ignored.
+	--htmout <f>	Save a HTML version of the output. Useful for web integration.
+	-v	Print hmmcompete version and exit
+
+=head1 AUTHOR
+
+  Dominique KOUA <dominique.koua at iee.unibe.ch>
+  
+=cut
+
+###############################################################################
+#               GENERAL SETTINGS: CUSTOMIZE TO YOUR SITE
+###############################################################################
+
+my $TEMP = '/tmp';
+
+###############################################################################
+#               NOTHING SHOULD NEED CHANGING BELOW THIS LINE!
+###############################################################################
+my $version='0.1';
+my $hmmcompete_version='hmmcompete ' . "$version";
+
+# import the libraries
+use strict;
+use warnings;
+use Data::Dumper;
+use Getopt::Long;
+
+# Process command line
+my ($hmmdb,$seqfile,$help,$pfrdesc,$altpred,$allseq,$pepreg,$tblout,$vers,$csvStats,$htmout,$hmmaln,$inanot,$getprec,$fasout) = ();
+GetOptions(
+	"in|i=s" => \$seqfile,
+	"hmm=s" => \$hmmdb,
+	"out|o:s"=>\$csvStats ,
+	"help|h" => \$help,
+	"desc|d"=>\$pfrdesc,
+	"altpred"=>\$altpred,
+	"allseq"=>\$allseq,
+	"pepreg"=>\$pepreg,
+	"version|v"=>\$vers,
+	"hsout:s"=>\$tblout,
+	"htmout:s"=>\$htmout,
+	"fasout:s"=>\$fasout,
+	"hmmaln"=>\$hmmaln,
+	"inanot"=>\$inanot,
+	"getprec"=>\$getprec,
+	
+);
+
+# print help information
+&_usage if($help);
+
+# print version information
+if($vers){print "$hmmcompete_version \n";exit;}
+
+#error handling for empty hmm or sequence file
+unless(defined $hmmdb and -s $hmmdb){
+	print STDERR "##############  hmmcompete error  ##########################\n";
+	print STDERR "HMM database not found! Please check your input file\n";
+	print STDERR "############################################################\n";
+	&_usage;
+}
+unless(defined $seqfile and -s $seqfile){
+	print STDERR "##############  hmmcompete error  ################################\n";
+	print STDERR "Protein sequence database not found! Please check your input file\n";
+	print STDERR "##################################################################\n";
+	&_usage;
+}
+
+#Die while writing access is refused for requested output file
+
+my $writehs = 0;
+my $hsoutfh;
+if(defined $tblout){
+	open($hsoutfh,'>',$tblout) or die "##########  hmmcompete error  ##########################\nCannot write file [$tblout]: $!\n############################################################\n";
+	$writehs++;
+}
+my $writehtm = 0;
+my $htmoutfh;
+if(defined $htmout){
+	open($htmoutfh,'>',$htmout) or die "##########  hmmcompete error  ##########################\nCannot write file [$htmout]: $!\n############################################################\n";
+	$writehtm++; 
+}
+
+my $writefas = 0;
+my $fasoutfh;
+if(defined $fasout){
+	open($fasoutfh,'>',$fasout) or die "##########  hmmcompete error  ##########################\nCannot write file [$fasout]: $!\n############################################################\n";
+	$writefas++; 
+}
+
+# Standard output : write into $csvStats when -o option is chosen or send to standard output stream
+my $openres = 0;
+my $csvfh;
+$openres = open($csvfh,'>',$csvStats );
+unless($openres){
+	print STDERR "##########################  hmmcompete warning  ##########################\n";
+	print STDERR "Output redirection failed! Result will be displayed on standard output!!\n";
+	print STDERR "##########################################################################\n";
+	$csvfh = *STDOUT;
+}
+
+#Temporary output files
+my $hmmresfile = $TEMP."/hmmres_".$$.".tbl";;
+
+######################################################
+##  Main
+######################################################
+
+#Run hmmsearch
+(system "hmmsearch --domtblout $hmmresfile $hmmdb  $seqfile  >/dev/null")==0 or die "hmmsearch failed. Make sure hmmsearch is installed and available in your PATH variable.";
+
+# Get prediction from hmmresfile
+open my $hsfh, "<$hmmresfile" or die "Cannot read from hmmsearch result file: $!";
+my $hscom = '';
+my %hitcount;
+my $lncnt = 1;
+while(<$hsfh>){
+	my $ln = $_;
+	if( $ln =~/^#/){
+		$hscom.=$ln if($lncnt<4);
+		$lncnt++;
+		next;
+	}
+	my @el = split /\s+/,$ln,23;
+	$hitcount{$el[0]}->{'matches_count'}++;
+	if($hitcount{$el[0]}->{'matches_count'}==1){
+		$hitcount{$el[0]}->{'pred_score'} = $el[13];
+		$hitcount{$el[0]}->{'matches_position'} = '';
+	}
+#unless defined ($hitcount{$el[0]}->{'matches_position'});	
+	$hitcount{$el[0]}->{'matches_position'} .= '('.$el[17].'-'.$el[18].'#'.$el[3].'#'.$el[13].') ';
+#			$hitcount{$el[0]}->{'pred_score'} = $el[13] unless defined ($hitcount{$el[0]}->{'pred_score'});
+	if($hitcount{$el[0]}->{'pred_score'} <= $el[13]){
+		$hitcount{$el[0]}->{'pred_score'} = $el[13] ;
+		$hitcount{$el[0]}->{'sequence_id'} = $el[0] ;
+		$hitcount{$el[0]}->{'classifier_name'} = $el[3] ;
+		$hitcount{$el[0]}->{'ali_from'} = $el[17] ;
+		$hitcount{$el[0]}->{'ali_to'} = $el[18] ;
+		$hitcount{$el[0]}->{'hmm_qlen'} = $el[5] ;
+		$hitcount{$el[0]}->{'hmm_from'} = $el[15] ;
+		$hitcount{$el[0]}->{'hmm_to'} = $el[16] ;
+		$hitcount{$el[0]}->{'pred_text'} = $ln ;
+	}
+}
+close $hsfh;
+
+##############################################
+## Output Classification Results 
+##############################################
+
+# List selected columns to output
+my @col=('classifier_name');
+
+#the getprec option requires pepreg to be set. 
+$pepreg++ if(defined $getprec);
+
+#add information for target region when requested
+if(defined $pepreg){
+	#add to column list
+	push @col ,('ali_from','ali_to','target_region');
+	push @col , 'pseudo_precursor' if(defined $getprec);
+	#Process FASTA file 
+	my $seqHdb = &_getseq($seqfile);
+	#add regions
+	for my $sqid (keys %hitcount){
+		my $pepregion = substr $seqHdb->{$sqid}, $hitcount{$sqid}->{'ali_from'}-1, $hitcount{$sqid}->{'ali_to'}-$hitcount{$sqid}->{'ali_from'}+1 ;
+		$hitcount{$sqid}->{'target_region'} = $pepregion;
+	#report precursor when asked
+		if(defined $getprec){
+			$hitcount{$sqid}->{'pseudo_precursor'} = '';
+			if($seqHdb->{$sqid} =~m/([MX]?.*?$pepregion[^X]*X?)/g){
+				$hitcount{$sqid}->{'pseudo_precursor'} = $1;
+			}
+		}	
+	}
+}
+
+
+
+#add columns for HMM match coordinates and region alignment based on the HMM if asked
+if(defined $hmmaln){
+	push @col ,('hmm_from','hmm_to','region_aln');
+	my $seqHdb = &_getseq($seqfile);
+	#add region alignment
+	for my $sqid (keys %hitcount){
+		my $reg;
+		if(defined $hitcount{$sqid}->{'target_region'}){
+			$reg = $hitcount{$sqid}->{'target_region'};
+		}else{
+			$reg = substr $seqHdb->{$sqid}, $hitcount{$sqid}->{'ali_from'}-1, $hitcount{$sqid}->{'ali_to'}-$hitcount{$sqid}->{'ali_from'}+1 ;
+		}
+		$hitcount{$sqid}->{'region_aln'} = '-' x $hitcount{$sqid}->{'hmm_qlen'};
+		substr $hitcount{$sqid}->{'region_aln'},$hitcount{$sqid}->{'hmm_from'}-1,$hitcount{$sqid}->{'hmm_to'}-$hitcount{$sqid}->{'hmm_from'}+1,$reg
+		#$hitcount{$sqid}->{'region_aln'} = ('-' x ($hitcount{$sqid}->{'hmm_from'}-1)).$reg;
+	}
+}
+
+
+
+#add HMM description when requested
+if(defined $pfrdesc){
+	#add to column list
+	push @col ,'classifier_desc';
+	#process HMM file
+	my $hmmHdb = &_gethmmdesc($hmmdb);
+	#add DESC lines
+	for my $sqid (keys %hitcount){
+		$hitcount{$sqid}->{'classifier_desc'} = $hmmHdb->{$hitcount{$sqid}->{'classifier_name'}};
+	}
+}
+
+#add columns for alternative HMM matches on request
+if(defined $altpred){
+	push @col ,('matches_count','matches_position');
+}
+
+#add information for non classified peptides when requested
+if(defined $allseq){
+	#Process FASTA file 
+	my $seqHdb = &_getseq($seqfile);	
+	for my $sqid (keys %{$seqHdb}){
+		for my $c (@col){
+			$hitcount{$sqid}->{$c} = 0 unless defined($hitcount{$sqid}->{$c});
+		}
+		$hitcount{$sqid}->{'hmm_from'}=0 unless defined($hitcount{$sqid}->{'hmm_from'});
+	}
+}
+
+#add input sequence annotation when asked. annotation should be present in fasta header as >seq_id #annotation#
+if(defined $inanot){
+	unshift @col, 'seq_annotation';
+	my $annlab = &_getseqannot($seqfile);
+	$hitcount{$_}->{'seq_annotation'} = $annlab->{$_} for (keys %hitcount)
+}
+
+#Prepare output
+my @orderedentries;
+my %prfhitlist;
+for my $h (keys %hitcount){
+	$prfhitlist{$hitcount{$h}->{'classifier_name'}}{$h}=$hitcount{$h}->{'hmm_from'};
+}
+
+foreach my $hmmname (sort keys %prfhitlist) {
+    foreach my $hitname (sort {$prfhitlist{$hmmname}{$a} <=> $prfhitlist{$hmmname}{$b}} keys %{$prfhitlist{$hmmname}}) {
+        push  @orderedentries,$hitname  ;
+    }
+}
+
+
+
+# hmmsearch output is written here when requested. This saves a second iteration through %hitcount.
+print $hsoutfh $hscom if $writehs;
+print $csvfh "sequence_id\t";
+print $csvfh join "\t",@col;
+print $csvfh "\n";
+
+
+
+for my $sqid (@orderedentries){
+	print $csvfh $sqid ;
+	for my $c (@col){
+		print $csvfh "\t".$hitcount{$sqid}->{$c};
+	}
+	print $csvfh "\n";
+	print $hsoutfh $hitcount{$sqid}->{'pred_text'} if $writehs; #write hmmsearch-like output
+}
+close $csvfh if $openres;
+close $hsoutfh if $writehs;
+
+#fasta annotation of the initial query file is provided on request
+if($writefas){
+	my $seqHdb = &_getseq($seqfile);
+	my $hmmHdb = &_gethmmdesc($hmmdb);
+	for my $sqid (@orderedentries){
+		my $hder = ">$sqid".' #';
+		$hder .= $hitcount{$sqid}->{'seq_annotation'}.' ; ' if(defined $hitcount{$sqid}->{'seq_annotation'});
+		$hder .= $hitcount{$sqid}->{'classifier_name'}.' '.$hmmHdb->{$hitcount{$sqid}->{'classifier_name'}}."#\n";
+		print $fasoutfh $hder.$seqHdb->{$sqid}."\n";
+	}
+}
+
+# html output when requested
+if($writehtm){
+	my $htmHeader =<<HTML;
+<!DOCTYPE HTML PUBLIC >
+<html lang="en-US">
+<body>
+HTML
+	my $htmlFooter=<<HTML;
+</body>
+</html>
+HTML
+
+	print $htmoutfh $htmHeader;
+	print $htmoutfh '<h1>hmmcompete Result </h1>';
+	print $htmoutfh "<p>Predictions based on $hmmdb </p>";
+	print $htmoutfh scalar keys %hitcount ,' sequences reported.<br/>';
+	print $htmoutfh "\n <table  style=\"border:1px solid\">";
+	unshift @col, 'sequence_id';
+	for my $c (@col){
+		my $h = $c;
+		$h=~s/_/ /g;
+		print $htmoutfh '<th style="border:1px solid">'.$h.'</th>';
+	}
+	print $htmoutfh '</tr>';
+
+	for my $sqid (@orderedentries){
+		print $htmoutfh '<tr>';
+		for my $c (@col){
+			print $htmoutfh '<td style="border:1px solid">',$hitcount{$sqid}->{$c},"</td>\n";
+		}
+		print $htmoutfh '</tr>';
+	}
+	print $htmoutfh "</table><br/><br/>\n";
+	print $htmoutfh $htmlFooter;
+	
+	close $htmoutfh;
+}
+
+#Clean around and exit
+unlink $hmmresfile;
+
+exit 0;
+
+# subroutine to print help information
+sub _usage{
+	exec('perldoc',$0);
+	exit;
+}
+
+# $seqhref=_getseq($fastadbFileName)
+# return a hashref $entries->{$id}=$seq of sequences from a FASTA file
+sub _getseq{
+    my ($file)=@_;    
+    open (my $fh, "<$file") or die "functions::_getseq failed. Cannot open the file [$file]: $!\n";
+    local $/="\n>";
+    my %entries;
+    while(<$fh>){
+        chomp(my $entry= $_);
+        $entry =~ s/>//g;
+        $entry =~ s/[\n\r]/\n/g;
+        my ($id,$seq) = split /\n/,$entry,2;
+        $id=~/(\S+)\s?/;
+        my $ent = $1 ;
+        $seq =~ s/[\s\n\r]//g;
+#        $seq =~ s/[BJOUZ]/X/ig;
+        $entries{$ent}=uc($seq) if(defined $ent && defined $seq);
+    }
+    close $fh;
+    return \%entries;
+}
+
+sub _getseqannot{
+	my ($file)=@_;    
+	open (my $fh, "<$file") or die "functions::_getseqannot failed. Cannot open the file [$file]: $!\n";
+	local $/="\n>";
+	my %entries;
+	while(<$fh>){
+		chomp(my $entry= $_);
+		$entry =~ s/>//g;
+		$entry =~ s/[\n\r]/\n/g;
+		my ($id,$seq) = split /\n/,$entry,2;
+		$id=~/(\S+)\s?/;
+		my $ent = $1 ;
+		my $annot = ($id=~/#(.*?)#/)?$1:'None';
+		$entries{$ent}=$annot;
+	}
+	close $fh;
+	return \%entries;
+}
+
+# $hmmhref=_gethmmdesc($hmmDbFileName)
+# return a hashref $entries->{$hmmName}=$hmmDesc with profile HMM description from a HMM file
+sub _gethmmdesc{
+	my ($file) = @_;
+	open (my $fh, "<$file") or die "functions::_gethmmdesc failed. Cannot open the file [$file]: $!\n";
+	local $/="//";
+    my %entries;
+    while(<$fh>){
+		chomp(my $entry= $_);
+		my $name = ($entry=~/NAME\s+(.*?)\n/)?$1:'';
+		my $desc = ($entry=~/DESC\s+(.*?)\n/)?$1:'';
+		$entries{$name}=$desc if (defined $name && defined $desc);
+	}
+	close $fh;
+	return \%entries;
+}
+
