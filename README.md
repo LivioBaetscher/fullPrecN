@@ -17,7 +17,7 @@ The program is then started with the bash command:
 ./fullPrecN -i <path/of/transcriptomeFasta> --sig <path/of/singalHMM> --mat <path/of/matureHMM>
 ```
 The files are stored in the new generated directory "Results". This directory can be changed using the "-o" option.
-If the "-r" option is chosen, all redundant sequences are automatically removed in the output.
+If the "-r" option is chosen, the redundant sequences are not automatically removed in the output.
 With the option "-a" no alignment is preformed.
 
 ### PROGRAMS NEEDED
