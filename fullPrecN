@@ -301,13 +301,14 @@ sub do_trimming {
 	my ($trimSeq, $infoline) = @_;
 	# Load the start and end
 	my @infoele = split /\t/,$infoline;  # Split the information of the line
+	#HERE is the bugg the new splitting is not relevant!
 	my @probBorders = split /-/,$infoele[0];  # Add the signal start and end
-	push @probBorders, split /-/,$infoele[3];  # Add the mature start and end 
+	push @probBorders, split /-/,$infoele[3];  # Add the mature start and end
 	my $start = $probBorders[0]-1;  # Get the start
 	my $end = $probBorders[1]-1;  # Get the end
 	# Hanle the case, where a signal peptide is avilable
-	if ($probBorders[3]-1 ne '') {
-		$end = $probBorders[3];
+	if ($probBorders[3] ne '') {
+		$end = $probBorders[3]-1;
 	}
 	# Trim of after the end
 	while ($end<length($trimSeq)) {
@@ -325,8 +326,8 @@ sub do_trimming {
 		$start--;	
 	}
 	$start = $probBorders[0]-1; #Reset the start
-	
 	# Now we go right until the initial start or a "M" is reached
+	my $firstStartEnd = $secandStart;
 	while ($secandStart<$start) {
 		if (substr($trimSeq, $secandStart, 1) eq "M") {
 			$trimSeq = substr($trimSeq, $secandStart); last;
