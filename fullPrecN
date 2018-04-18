@@ -301,7 +301,6 @@ sub do_trimming {
 	my ($trimSeq, $infoline) = @_;
 	# Load the start and end
 	my @infoele = split /\t/,$infoline;  # Split the information of the line
-	#HERE is the bugg the new splitting is not relevant!
 	my @probBorders = split /-/,$infoele[0];  # Add the signal start and end
 	push @probBorders, split /-/,$infoele[3];  # Add the mature start and end
 	my $start = $probBorders[0]-1;  # Get the start
