@@ -441,7 +441,7 @@ sub create_FASTA {
 		# Store the sequence according to the subfamilies that start
 		# with SN (VP are excluded here)
 		$_ = $fam;
-		# Comment line 334 and uncomment line 335 to include also VP and SC
+		# Comment line 445 and uncomment line 446 to include also VP and SC
 		if (m/^SN_/) {
 		#if (($seq ne '') or ($key ne '')) {
 			# Print the results into the file into the FASTA-format
