@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # fullPrecN 1.0 mian script
-# Date: 20.02.2018
+# Date: 26.04.2018
 
 =head1 NAME
 
@@ -69,7 +69,7 @@ my $matFile = $transcriptomeFile."_mat.csv";
 
 # Version
 my $version='1.0';
-my $hmmsort_version='hmmsort version: ' . "$version";
+my $fullPrecN_version='fullPrec version: ' . "$version";
 
 # Print the program description
 if($help){pod2usage( -verbose => 99 ); exit;}
