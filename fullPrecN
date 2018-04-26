@@ -75,7 +75,7 @@ my $fullPrecN_version='fullPrec version: ' . "$version";
 if($help){pod2usage( -verbose => 99 ); exit;}
 
 # Print the version information
-if($vers){print "$hmmsort_version\n"; exit;}
+if($vers){print "$fullPrecN_version\n"; exit;}
 
 # Error handling for missing input or HMM files
 unless(defined $transcriptomeFile and -s $transcriptomeFile){
