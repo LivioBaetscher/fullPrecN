@@ -60,7 +60,7 @@ GetOptions(
 	"r|noRed"=> \$removeOpt,
 	"a|noAl"=> \$alignOpt,
 	"help|h" => \$help,
-	"vers|v"=>\$vers,
+	"version|v"=>\$vers,
 );
 
 # Create the variable for the hmmcompete output
@@ -69,7 +69,7 @@ my $matFile = $transcriptomeFile."_mat.csv";
 
 # Version
 my $version='1.0';
-my $fullPrecN_version='fullPrec version: ' . "$version";
+my $fullPrecN_version='fullPrecN version: ' . "$version";
 
 # Print the program description
 if($help){pod2usage( -verbose => 99 ); exit;}
