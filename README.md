@@ -20,6 +20,8 @@ The files are stored in the newly generated directory "Results". This directory 
 If the "-r" option is chosen, the redundant sequences are not automatically removed in the output.
 With the option "-a" no alignment is preformed.
 
+The files “allMatModel.hmm” and “allSignalModel.hmm” contain the signal and mature peptide models which were generated with HMMER 3.0. The ending “.hmm” indicates, that the file contains profile HMM and has the same ending as in the HMMER manual. The model files can also be trained. Therefore, the user can build models with the hmmbuilt function and replace or add subfamilies or families. The only restriction for the training process is the fact, that the model name must be chosen like this: SN_XX_XX (X must be a number from zero to nine).
+
 ### PROGRAMS NEEDED
 
 [Perl 5](https://www.perl.org/), [MAFFT version 7](https://mafft.cbrc.jp/alignment/software/) and [HMMER3](http://hmmer.org/)
