@@ -1,0 +1,25 @@
+#Brief installation instruction on Ubuntu
+#fullPrecN 1.0 (Sptember 2018)
+
+#1.) Upgrade and update your system:
+	sudo apt update && sudo apt upgrade
+
+#2.) Perl is a standart instalation of Ubuntu and should already installed.
+	perl -v  #Check if perl is installed
+	#If you do not recieve the message, that perl 5 is installed (version 22 or higher) execute:
+	sudo apt-get install perl
+
+#3.) Install HMMER 3.2.1:
+	sudo apt-get install hmmer
+
+#4.) Install MAFFT version 7:
+	sudo apt install mafft
+
+#5.) Download fullPrecN:
+	wget -O fullPrecN-1.0.zip 'https://github.com/LivioBaetscher/fullPrecN/archive/master.zip'
+	unzip fullPrecN-1.0.zip && rm fullPrecN-1.0.zip && mv ./fullPrecN-master ./fullPrecN-1.0
+	cd ./fullPrecN-1.0
+	chmod +x fullPrecN hmmcompete
+	./fullPrecN -i ZhangJ.fasta --sig allSignalModel.hmm --mat allMatModel.hmm --out Test  #This preforms a optional test
+
+
