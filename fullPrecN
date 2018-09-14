@@ -9,7 +9,7 @@ fullPrecN - does HMM searches, preforms a filtering and does the post-processing
 
 =head1 SYNOPSIS
 
-./fullPrecN [options] --in <seqFasta> --sig <signalHMM> --mat <matureHMM>
+./fullPrecN [options] -i <seqFasta> --sig <signalHMM> --mat <matureHMM>
 
 =head1 DESCRIPTION
 
