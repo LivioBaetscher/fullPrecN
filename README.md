@@ -7,6 +7,10 @@ allMatModel.hmm and allSigModel.hmm are the library files containing HMMs which 
 
 hmmcompete is a program used for the HMM search process.
 
+INSTALATION is a short explanation hoe to install the third party software and run a simple test.
+
+ZhangJ.fasta is a fasta file from a study of Zhang et al. it contains spider neurotoxins and is needed to run a test.
+
 All the models and hmmcompete need to be copied into the working directory (the same directory where fullPrecN is located).
 
 ### USAGE
@@ -30,3 +34,9 @@ The files “allMatModel.hmm” and “allSignalModel.hmm” contain the signal 
 
 The files fullPrecN and allSigModel.hmm have been developed by Livio Bätscher. hmmcompete and allMatModel.hmm were developed by Dominique Koua, both in Switzerland.
 Therefore, the files are protected by the swiss Urheberrechtsgesetz (URG) and the Urheberrechtsverordnung (URV). It is allowed to copy and use the files but the users must cite the authors.
+
+### CYTE
+
+For fullPrecN: Bätscher L, Kua D, Langenegger N, Nentwig W, Kuhn-Nentwig L. fullPrecN: Fully Automatized Neurotoxin Precursor Detection in Spider Transcriptomes, Based on HMM. Unpublished.
+For hmmbuilt: Koua D, Kuhn-Nentwig L. Spider Neurotoxins, Short Linear Cationic Peptides and Venom Protein Classification Improved by an Automated Competition between Exhaustive Profile HMM Classifiers. Toxins. 2017;9:245.
+For the fasta file with neurotoxin sequences: Zhang Y, Huang Y, He Q, Liu J, Luo J, Zhu L, Shanshan L, et al. Toxin diversity revealed by a transcriptomic study of Ornithoctonus huwena. PLoS One. 2014;9:e100682.
