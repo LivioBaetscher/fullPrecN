@@ -38,5 +38,7 @@ Therefore, the files are protected by the swiss Urheberrechtsgesetz (URG) and th
 ### CYTE
 
 For fullPrecN: Bätscher L, Kua D, Langenegger N, Nentwig W, Kuhn-Nentwig L. fullPrecN: Fully Automatized Neurotoxin Precursor Detection in Spider Transcriptomes, Based on HMM. Unpublished.
+
 For hmmbuilt: Koua D, Kuhn-Nentwig L. Spider Neurotoxins, Short Linear Cationic Peptides and Venom Protein Classification Improved by an Automated Competition between Exhaustive Profile HMM Classifiers. Toxins. 2017;9:245.
+
 For the fasta file with neurotoxin sequences: Zhang Y, Huang Y, He Q, Liu J, Luo J, Zhu L, Shanshan L, et al. Toxin diversity revealed by a transcriptomic study of Ornithoctonus huwena. PLoS One. 2014;9:e100682.
