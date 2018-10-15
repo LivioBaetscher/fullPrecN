@@ -7,9 +7,9 @@ allMatModel.hmm and allSigModel.hmm are the library files containing HMMs which 
 
 hmmcompete is a program used for the HMM search process.
 
-INSTALATION is a short explanation hoe to install the third party software and run a simple test.
+INSTALATION is a short explanation how to install the third party software and run a simple test.
 
-ZhangJ.fasta is a fasta file from a study of Zhang et al. it contains spider neurotoxins and is needed to run a test.
+ZhangJ.fasta is a fasta file from a study of Zhang et al. It contains spider neurotoxins and is needed to run a test.
 
 All the models and hmmcompete need to be copied into the working directory (the same directory where fullPrecN is located).
 
