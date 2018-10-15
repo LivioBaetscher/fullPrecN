@@ -19,7 +19,7 @@
 	wget -O fullPrecN-1.0.zip 'https://github.com/LivioBaetscher/fullPrecN/archive/master.zip'
 	unzip fullPrecN-1.0.zip && rm fullPrecN-1.0.zip && mv ./fullPrecN-master ./fullPrecN-1.0
 	cd ./fullPrecN-1.0
-	chmod +x fullPrecN hmmcompete
+	chmod u+x fullPrecN hmmcompete
 	./fullPrecN -i ZhangJ.fasta --sig allSignalModel.hmm --mat allMatModel.hmm --out Test  #This preforms a optional test
 
 
