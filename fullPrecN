@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
-# fullPrecN 1.0 mian script
-# Date: 26.04.2018
+# fullPrecN 1.0 main script
+# Date: 15.10.2018
 
 =head1 NAME
 
@@ -25,7 +25,7 @@ redirecting the main output.
 
 =head2 Mandatory arguments
 
-	-i|--in		The file containing the transcriptome sequences. In FASTA format
+	-i|--in		The file containing the transcriptome sequences. In FASTA format.
 	--sig		The profile database used for the signal peptide classification. HMMER3 profiles.
 	--mat		The profile database used for the mature peptide classification. HMMER3 profiles.
 	
@@ -128,12 +128,12 @@ my %trimedResults = get_trimmedSeq(\%filteredResults, $transcriptomeFile);
 
 # Handle the option remove
 if ($removeOpt) {
-		# Print the sequences in FASTA fromat into family specific files
+		# Print the sequences in FASTA format into family specific files
 		create_FASTA(\%trimedResults, $outDir);
 } else {
 	# Case where the redundant sequences are removed
 	my %uniqueResults = remove_redundance(\%trimedResults);
-	# Print the sequences in FASTA fromat into family specific files
+	# Print the sequences in FASTA format into family specific files
 	create_FASTA(\%uniqueResults, $outDir);
 }
 
@@ -153,7 +153,7 @@ print "#########################################################################
 ## Program flow: Method is called in the subroutine get_hash and in the
 ## main program
 sub get_line {
-	my ($filename) = @_ ; # Get the filename
+	my ($filename) = @_ ; # Get the file name
 	# Check if the file exists
 	open(my $fh, '<:encoding(UTF-8)', $filename)
 	or die "Could not open file '$filename' $!";
@@ -254,7 +254,7 @@ sub get_filterdResults {
 		$matClass =~ s/_\d{2}$//;
 		my $matScore = $fields[5];  # Get the mature peptide score
 		# Only keep the values if they have the same signal and mature
-		# peptide or if the mature peptide is above or equalthe cut-off 
+		# peptide or if the mature peptide is above or equal the cut-off 
 		# value of 19.2
 		if (($sigClass eq $matClass) or ($matScore >= 19.2)) {
 			# Exclude the empty mature peptides
@@ -305,7 +305,7 @@ sub do_trimming {
 	push @probBorders, split /-/,$infoele[3];  # Add the mature start and end
 	my $start = $probBorders[0]-1;  # Get the start
 	my $end = $probBorders[1]-1;  # Get the end
-	# Hanle the case, where a signal peptide is avilable
+	# Hanle the case, where a signal peptide is available
 	if ($probBorders[3] ne '') {
 		$end = $probBorders[3]-1;
 	}
@@ -324,8 +324,8 @@ sub do_trimming {
 		}
 		$start--;	
 	}
-	$start = $probBorders[0]-1; #Reset the start
-	# Now we go right until the initial start or a "M" is reached
+	$start = $probBorders[0]-1; # Reset the start
+	# Now go right until the initial start or a "M" is reached
 	my $firstStartEnd = $secandStart;
 	while ($secandStart<$start) {
 		if (substr($trimSeq, $secandStart, 1) eq "M") {
@@ -415,8 +415,8 @@ sub remove_redundance {
 	return %uniqHash;
 }
 
-## This subroutine fills sequence into files (in the FASTA-format), which
-## are separated according to the toxin family label.
+## This subroutine moves the sequence into files (in the FASTA-format),
+##  which are separated according to the toxin family label.
 ## Arguments:
 ##  %resulthash: Hash containing all the id (as key) and the information
 ##  from the HMM search and the trimmed unique sequences (as value)
@@ -441,7 +441,7 @@ sub create_FASTA {
 		# Store the sequence according to the subfamilies that start
 		# with SN (VP are excluded here)
 		$_ = $fam;
-		# Comment line 445 and uncomment line 446 to include also VP and SC
+		# Comment line 445 and uncomment line 446 to include also the detection of VP and SC
 		if (m/^SN_/) {
 		#if (($seq ne '') or ($key ne '')) {
 			# Print the results into the file into the FASTA-format
@@ -475,7 +475,7 @@ sub create_alignedFASTA {
 		} else {
 			foreach my $line (@seqLines) {
 				# Print the results into the file according to the FASTA-format
-				open my $famfh, ">>", $output or die "open failed : $!";
+				open my $famfh, ">>", $output or die "Error: opening process failed at the file $!";
 				print $famfh $line;
 				close $famfh;
 			}
