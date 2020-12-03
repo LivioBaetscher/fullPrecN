@@ -200,7 +200,7 @@ sub get_hash {
 		$bestbracket =~ s/#/\t/g;
 		$infoHash{$id}=$bestbracket;
 	}
-	return %infoHash
+	return %infoHash;
 }
 
 ## This subroutine merges the results from the signal and the mature pep-
