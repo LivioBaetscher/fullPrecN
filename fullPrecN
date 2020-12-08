@@ -153,7 +153,7 @@ print "#########################################################################
 ## Program flow: Method is called in the subroutine get_hash and in the
 ## main program
 sub get_line {
-	my ($filename) = @_ ; # Get the file name
+	my ($filename) = @_; # Get the file name
 	# Check if the file exists
 	open(my $fh, '<:encoding(UTF-8)', $filename)
 	or die "Could not open file '$filename' $!";
